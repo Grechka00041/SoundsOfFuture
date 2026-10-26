@@ -155,6 +155,27 @@ export const useStudio = () => {
         }
     }, [loadSample, openedTrack, setState]);
 
+    /** Добавить ещё одну копию того же семпла — отдельную дорожку (её можно двигать независимо). */
+    const addSampleCopy = useCallback(async (sample: TrackSample) => {
+        const daw = engineRef.current;
+        if (daw === null || openedTrack === null) return;
+        const id = sourceId(openedTrack, sample);
+        // если первой дорожки ещё нет — сначала создаём её (с загрузкой файла)
+        if (!daw.hasSource(id)) {
+            await loadSample(daw, openedTrack, sample, openToken.current);
+            return;
+        }
+        const lane = daw.snapshot.lanes.find(lane => lane.sourceId === id);
+        if (lane !== undefined) daw.duplicateLane(lane.id);
+    }, [loadSample, openedTrack]);
+
+    /** Сколько дорожек-копий этого семпла сейчас в DAW. */
+    const copyCount = useCallback((sample: TrackSample): number => {
+        const daw = engineRef.current;
+        if (daw === null || openedTrack === null) return 0;
+        return daw.copyCount(sourceId(openedTrack, sample));
+    }, [openedTrack]);
+
     const closeTrack = useCallback(() => {
         openToken.current++;
         setOpenedTrack(null);
@@ -167,7 +188,7 @@ export const useStudio = () => {
     return {
         engine, engineStatus, engineError, snapshot,
         openedTrack, samples, samplesLoading, sampleStates, mixedTracks,
-        openTrack, addTrack, toggleSample, closeTrack,
+        openTrack, addTrack, toggleSample, addSampleCopy, copyCount, closeTrack,
     };
 };
 

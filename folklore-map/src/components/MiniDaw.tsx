@@ -1,6 +1,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {KeyboardEvent as ReactKeyboardEvent, PointerEvent as ReactPointerEvent} from 'react';
-import type {LaneInfo, RegionInfo} from '../daw/DawEngine';
+import type {EffectKind, LaneInfo, RegionInfo} from '../daw/DawEngine';
+import {PARAM_SPECS} from '../daw/DawEngine';
 import type {Studio} from '../hooks/useStudio';
 import styles from './MiniDaw.module.css';
 
@@ -11,6 +12,14 @@ const MIN_PPS = 4;
 const MAX_PPS = 480;
 const EDGE_PX = 7;
 const NICE_STEPS = [0.1, 0.25, 0.5, 1, 2, 5, 10, 15, 30, 60, 120, 300, 600];
+
+const EFFECT_KINDS: {kind: EffectKind, label: string}[] = [
+    {kind: 'delay', label: 'Delay'},
+    {kind: 'eq', label: 'EQ'},
+    {kind: 'saturation', label: 'Сатурация'},
+    {kind: 'distortion', label: 'Дисторшн'},
+    {kind: 'reverb', label: 'Реверб'},
+];
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 
@@ -31,6 +40,8 @@ interface DragState {
     mode: DragMode;
     regionId: string;
     pointerX: number;
+    pointerY: number;
+    laneIndex: number;
     start: number;
     duration: number;
     moved: boolean;
@@ -59,8 +70,11 @@ export const MiniDaw = ({studio}: Props) => {
     const [playing, setPlaying] = useState(false);
     const [exporting, setExporting] = useState<number | null>(null);
     const [message, setMessage] = useState<string | null>(null);
+    const [fxOpen, setFxOpen] = useState<Record<string, boolean>>({});
 
     const lanes = snapshot?.lanes ?? [];
+    const lanesRef = useRef<LaneInfo[]>([]);
+    lanesRef.current = lanes;
     const length = snapshot?.length ?? 0;
     const trackAreaWidth = Math.max(viewport.width - HEADER_W, 100);
     const contentWidth = Math.max(trackAreaWidth, (length + 6) * pps + 40);
@@ -228,6 +242,14 @@ export const MiniDaw = ({studio}: Props) => {
         setSelectedRegion(null);
     }, [engine, selectedRegion]);
 
+    /** Убрать дорожку: все её копии или только выбранную (если копий несколько). */
+    const closeLane = useCallback((lane: LaneInfo) => {
+        if (!engine) return;
+        const copies = lanes.filter(item => item.sourceId === lane.sourceId).length;
+        if (copies > 1) engine.removeLane(lane.id);
+        else engine.removeSource(lane.sourceId);
+    }, [engine, lanes]);
+
     const zoomBy = useCallback((factor: number) => {
         userZoomed.current = true;
         setPps(value => clamp(value * factor, MIN_PPS, MAX_PPS));
@@ -268,7 +290,8 @@ export const MiniDaw = ({studio}: Props) => {
         const mode: DragMode = offsetX <= EDGE_PX ? 'trim-start'
             : offsetX >= rect.width - EDGE_PX ? 'trim-end' : 'move';
         dragRef.current = {
-            mode, regionId: region.id, pointerX: event.clientX,
+            mode, regionId: region.id, pointerX: event.clientX, pointerY: event.clientY,
+            laneIndex: lanes.findIndex(lane => lane.regions.some(item => item.id === region.id)),
             start: region.start, duration: region.duration, moved: false,
         };
         event.currentTarget.setPointerCapture(event.pointerId);
@@ -280,7 +303,14 @@ export const MiniDaw = ({studio}: Props) => {
         const delta = (event.clientX - drag.pointerX) / pps;
         if (!drag.moved && Math.abs(event.clientX - drag.pointerX) < 2) return;
         drag.moved = true;
-        if (drag.mode === 'move') engine.moveRegion(drag.regionId, drag.start + delta, true);
+        if (drag.mode === 'move') {
+            // вертикаль — перенос региона на другую дорожку
+            const laneDelta = Math.round((event.clientY - drag.pointerY) / LANE_H);
+            const target = clamp(drag.laneIndex + laneDelta, 0, lanesRef.current.length - 1);
+            const targetLane = lanesRef.current[target];
+            if (targetLane !== undefined) engine.moveRegionToLane(drag.regionId, targetLane.id, drag.start + delta, true);
+            else engine.moveRegion(drag.regionId, drag.start + delta, true);
+        }
         else if (drag.mode === 'trim-start') engine.trimStart(drag.regionId, drag.start + delta, true);
         else engine.trimEnd(drag.regionId, drag.start + drag.duration + delta, true);
     };
@@ -446,8 +476,13 @@ export const MiniDaw = ({studio}: Props) => {
                                         </span>
                                         <button
                                             className={styles.laneClose}
+                                            title="Дублировать дорожку (ещё одна копия семпла)"
+                                            onClick={() => engine?.duplicateLane(lane.id)}
+                                        >⧉</button>
+                                        <button
+                                            className={styles.laneClose}
                                             title="Убрать дорожку"
-                                            onClick={() => engine?.removeSource(lane.sourceId)}
+                                            onClick={() => closeLane(lane)}
                                         >✕</button>
                                     </div>
                                     {mixedTracks.length > 1 &&
@@ -463,6 +498,11 @@ export const MiniDaw = ({studio}: Props) => {
                                             onClick={() => engine?.setLaneSolo(lane.id, !lane.solo)}
                                             title="Соло"
                                         >S</button>
+                                        <button
+                                            className={`${styles.mini} ${lane.effects.length > 0 ? styles.miniOnFx : ''}`}
+                                            onClick={() => setFxOpen(prev => ({...prev, [lane.id]: !prev[lane.id]}))}
+                                            title="Эффекты дорожки"
+                                        >FX{lane.effects.length > 0 ? ` ${lane.effects.length}` : ''}</button>
                                         <input
                                             className={styles.volume}
                                             type="range"
@@ -476,6 +516,58 @@ export const MiniDaw = ({studio}: Props) => {
                                             aria-label={`Громкость ${lane.title}`}
                                         />
                                     </div>
+                                    {fxOpen[lane.id] && (
+                                        <div className={styles.fxPanel} onPointerDown={event => event.stopPropagation()}>
+                                            {lane.effects.map(effect => (
+                                                <div key={effect.id} className={styles.fxItem}>
+                                                    <div className={styles.fxItemTop}>
+                                                        <button
+                                                            className={`${styles.mini} ${effect.enabled ? '' : styles.miniOffEffect}`}
+                                                            onClick={() => engine?.setEffectEnabled(effect.id, !effect.enabled)}
+                                                            title={effect.enabled ? 'Выключить эффект' : 'Включить эффект'}
+                                                        >{effect.label}</button>
+                                                        <button
+                                                            className={styles.laneClose}
+                                                            onClick={() => engine?.removeEffect(effect.id)}
+                                                            title="Удалить эффект"
+                                                        >✕</button>
+                                                    </div>
+                                                    {(PARAM_SPECS[effect.kind] ?? effect.params.map(param => ({
+                                                        key: param.key, label: param.key, min: 0, max: 1, step: 0.01,
+                                                    }))).map(spec => {
+                                                        const current = effect.params.find(p => p.key === spec.key)?.value ?? spec.min;
+                                                        return (
+                                                            <label key={spec.key} className={styles.fxParam}>
+                                                                <span>{spec.label}{spec.unit ? `, ${spec.unit}` : ''}: {Math.round(current * 100) / 100}</span>
+                                                                <input
+                                                                    type="range"
+                                                                    min={spec.min}
+                                                                    max={spec.max}
+                                                                    step={spec.step}
+                                                                    value={current}
+                                                                    onChange={event => engine?.setEffectParameter(effect.id, spec.key, Number(event.target.value))}
+                                                                    onPointerUp={() => engine?.commitEdit()}
+                                                                />
+                                                            </label>
+                                                        );
+                                                    })}
+                                                </div>
+                                            ))}
+                                            <select
+                                                className={styles.fxSelect}
+                                                value=""
+                                                onChange={event => {
+                                                    const kind = event.target.value as EffectKind | '';
+                                                    if (kind !== '') engine?.addEffect(lane.id, kind);
+                                                }}
+                                            >
+                                                <option value="" disabled>＋ добавить эффект…</option>
+                                                {EFFECT_KINDS.map(item => (
+                                                    <option key={item.kind} value={item.kind}>{item.label}</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
                                 </div>
                                 <div
                                     className={styles.laneArea}

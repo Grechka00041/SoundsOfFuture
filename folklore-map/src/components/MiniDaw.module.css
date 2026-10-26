@@ -128,7 +128,6 @@
     padding: 0 0.4rem;
     background: #0c0c0c;
     border-right: 1px solid #1f3a28;
-    overflow: hidden;
 }
 .laneTop { display: flex; align-items: center; gap: 0.35rem; min-width: 0; }
 .dot { width: 9px; height: 9px; flex-shrink: 0; border-radius: 50%; }
@@ -137,6 +136,35 @@
 .laneClose { background: none; border: none; color: #666; font-family: inherit; cursor: pointer; padding: 0; }
 .laneClose:hover { color: #ff3355; }
 .laneControls { display: flex; align-items: center; gap: 0.25rem; }
+
+/* панель эффектов дорожки */
+.fxPanel {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 9;
+    width: 240px;
+    max-height: 260px;
+    overflow-y: auto;
+    background: #0c0c0c;
+    border: 1px solid #1f3a28;
+    padding: 0.4rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+.fxItem { border: 1px solid #1c2c22; padding: 0.3rem; display: flex; flex-direction: column; gap: 2px; }
+.fxItemTop { display: flex; align-items: center; justify-content: space-between; gap: 0.3rem; }
+.fxParam { display: flex; flex-direction: column; font-size: 0.85rem; line-height: 1; color: #9aa; }
+.fxParam input[type="range"] { height: 12px; accent-color: var(--g); }
+.fxSelect {
+    background: #000;
+    color: var(--g);
+    border: 1px solid #3a3a3a;
+    font-family: inherit;
+    font-size: 0.95rem;
+    padding: 2px;
+}
 
 .mini {
     width: 1.35rem;
@@ -153,6 +181,9 @@
 .mini:hover { border-color: var(--g); color: var(--g); }
 .miniOnMute { background: #ff3355; border-color: #ff3355; color: #000; }
 .miniOnSolo { background: #ffff00; border-color: #ffff00; color: #000; }
+.miniOnFx { background: var(--g); border-color: var(--g); color: #000; width: auto; padding: 0 2px; }
+.miniOffEffect { opacity: 0.45; }
+.fxItemTop .mini { width: auto; padding: 0 4px; }
 
 .volume { flex: 1; min-width: 0; height: 14px; accent-color: var(--g); }
 
