@@ -1,5 +1,7 @@
+import {useState} from 'react';
 import type {Studio, SampleStatus} from '../hooks/useStudio';
-import type {Track} from '../types/map';
+import type {Track, TrackSample} from '../types/map';
+import {trackService} from '../services/trackService';
 import {MiniDaw} from './MiniDaw';
 import styles from './SidePanel.module.css';
 
@@ -22,6 +24,45 @@ const STATUS_LABEL: Record<SampleStatus, string> = {
 
 export const SidePanel = ({regionName, tracks, loading, studio}: Props) => {
     const {openedTrack, samples, samplesLoading, sampleStates, mixedTracks} = studio;
+    const [downloadState, setDownloadState] = useState<string | null>(null);
+
+    /** Скачивает все семплы открытого трека (по одному файлу на семпл). */
+    const downloadAllSamples = async () => {
+        if (openedTrack === null || downloadState !== null) return;
+        setDownloadState('…');
+        try {
+            const {data: list} = samples.length > 0
+                ? {data: samples as TrackSample[]}
+                : await trackService.getSamples(openedTrack);
+            for (let index = 0; index < list.length; index++) {
+                const sample = list[index];
+                setDownloadState(`${index + 1}/${list.length}`);
+                try {
+                    const response = await fetch(trackService.resolveAudioUrl(sample.url));
+                    if (!response.ok) continue;
+                    const blob = await response.blob();
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    const extension = sample.url.split('.').pop()?.split(/[?#]/)[0] ?? 'mp3';
+                    link.href = url;
+                    link.download = `${sample.name.replace(/[\\/:*?"<>|]+/g, '_')}.${extension}`;
+                    link.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 10_000);
+                } catch {
+                    /* пропускаем недоступный семпл */
+                }
+                await new Promise(resolve => setTimeout(resolve, 350));
+            }
+        } finally {
+            setDownloadState(null);
+        }
+    };
+
+    /** Ещё одна копия того же семпла — отдельная дорожка в DAW. */
+    const addCopy = (sample: TrackSample) => {
+        if (openedTrack === null) return;
+        void studio.addSampleCopy(sample);
+    };
 
     return (
         <div className={styles.panel}>
@@ -88,6 +129,12 @@ export const SidePanel = ({regionName, tracks, loading, studio}: Props) => {
                     <h2 className={styles.heading}>
                         <span>СЕМПЛЫ</span>
                         <span className={styles.region} title={openedTrack.title}>{openedTrack.title}</span>
+                        <button
+                            className={styles.iconBtn}
+                            onClick={() => void downloadAllSamples()}
+                            disabled={samplesLoading || samples.length === 0 || downloadState !== null}
+                            title="Скачать все семплы этого трека"
+                        >{downloadState === null ? '⭳ ВСЕ' : downloadState}</button>
                         <button className={styles.close} onClick={studio.closeTrack} title="Закрыть трек">✕</button>
                     </h2>
                     <div className={styles.scroll}>
@@ -100,6 +147,7 @@ export const SidePanel = ({regionName, tracks, loading, studio}: Props) => {
                                 const state = sampleStates[sample.id];
                                 const status: SampleStatus = state?.status ?? 'loading';
                                 const enabled = status === 'ready' || status === 'loading';
+                                const copies = studio.copyCount(sample);
                                 return (
                                     <li
                                         key={sample.id}
@@ -111,6 +159,16 @@ export const SidePanel = ({regionName, tracks, loading, studio}: Props) => {
                                             {enabled ? '■' : '□'}
                                         </span>
                                         <span className={styles.rowTitle}>{sample.name}</span>
+                                        {copies > 1 && <span className={styles.copies}>×{copies}</span>}
+                                        <button
+                                            className={styles.iconBtn}
+                                            onClick={event => {
+                                                event.stopPropagation();
+                                                addCopy(sample);
+                                            }}
+                                            disabled={!enabled}
+                                            title="Добавить ещё одну копию семпла на отдельную дорожку"
+                                        >⧉</button>
                                         <span className={`${styles.status} ${styles[`status_${status}`]}`}>
                                             {STATUS_LABEL[status]}
                                         </span>

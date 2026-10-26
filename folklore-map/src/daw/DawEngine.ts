@@ -104,7 +104,7 @@ const EFFECT_LABELS: Record<EffectKind, string> = {
     delay: 'DELAY', eq: 'EQ', saturation: 'SAT', distortion: 'DIST', reverb: 'REVERB',
 }
 
-const PARAM_SPECS: Record<EffectKind, EffectParamSpec[]> = {
+export const PARAM_SPECS: Record<EffectKind, EffectParamSpec[]> = {
     delay: [
         {key: 'time', label: 'время', min: 10, max: 1500, step: 1, unit: 'мс'},
         {key: 'feedback', label: 'обр.', min: 0, max: 0.95, step: 0.01},
