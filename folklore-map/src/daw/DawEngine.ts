@@ -6,9 +6,19 @@ import {DefaultObservableValue, Option, panic, UUID} from '@opendaw/lib-std'
 import type {Progress, Subscription} from '@opendaw/lib-std'
 import {PPQN, WavFile} from '@opendaw/lib-dsp'
 import {AnimationFrame} from '@opendaw/lib-dom'
-import {BoxEditing} from '@opendaw/lib-box'
+import {Box, BoxEditing} from '@opendaw/lib-box'
 import type {AudioData} from '@opendaw/lib-dsp'
-import {AudioFileBox, TrackBox, AudioUnitBox} from '@opendaw/studio-boxes'
+import {
+    AudioFileBox,
+    TrackBox,
+    AudioUnitBox,
+    DelayDeviceBox,
+    FoldDeviceBox,
+    RevampDeviceBox,
+    ReverbDeviceBox,
+    WaveshaperDeviceBox,
+} from '@opendaw/studio-boxes'
+import type {Float32Field} from '@opendaw/lib-box'
 import {
     AudioRegionBoxAdapter,
     AudioUnitBoxAdapter,
@@ -17,10 +27,11 @@ import {
     RegionEditing,
     TrackBoxAdapter,
 } from '@opendaw/studio-adapters'
-import type {Sample} from '@opendaw/studio-adapters'
+import type {AudioEffectDeviceAdapter, Sample} from '@opendaw/studio-adapters'
 import {
     AudioContentFactory,
     AudioWorklets,
+    EffectFactories,
     FactoryCatalog,
     GlobalSampleLoaderManager,
     GlobalSoundfontLoaderManager,
@@ -49,6 +60,7 @@ export interface RegionInfo {
     muted: boolean
 }
 
+/** номер ряда внутри «группы» одного источника; дубликаты одного семпла различаются им */
 export interface LaneInfo {
     id: string
     /** id источника (`${trackId}:${sampleId}`) — по нему список семплов узнаёт, что дорожка есть */
@@ -64,6 +76,71 @@ export interface LaneInfo {
     volumeDb: number
     regions: RegionInfo[]
     waveform: Waveform
+    effects: EffectInfo[]
+}
+
+// ───────────────────────── Эффекты дорожек ─────────────────────────
+
+export type EffectKind = 'delay' | 'eq' | 'saturation' | 'distortion' | 'reverb'
+
+export interface EffectParamSpec {
+    key: string
+    label: string
+    min: number
+    max: number
+    step: number
+    unit?: string
+}
+
+export interface EffectInfo {
+    id: string
+    kind: EffectKind
+    label: string
+    enabled: boolean
+    params: {key: string, value: number}[]
+}
+
+const EFFECT_LABELS: Record<EffectKind, string> = {
+    delay: 'DELAY', eq: 'EQ', saturation: 'SAT', distortion: 'DIST', reverb: 'REVERB',
+}
+
+const PARAM_SPECS: Record<EffectKind, EffectParamSpec[]> = {
+    delay: [
+        {key: 'time', label: 'время', min: 10, max: 1500, step: 1, unit: 'мс'},
+        {key: 'feedback', label: 'обр.', min: 0, max: 0.95, step: 0.01},
+        {key: 'wet', label: 'wet', min: 0, max: 1, step: 0.01},
+    ],
+    eq: [
+        {key: 'lowGain', label: 'низ', min: -18, max: 18, step: 0.5, unit: 'дБ'},
+        {key: 'midGain', label: 'середина', min: -18, max: 18, step: 0.5, unit: 'дБ'},
+        {key: 'highGain', label: 'верх', min: -18, max: 18, step: 0.5, unit: 'дБ'},
+    ],
+    saturation: [
+        {key: 'inputGain', label: 'drive', min: 0, max: 1, step: 0.01},
+        {key: 'mix', label: 'микс', min: 0, max: 1, step: 0.01},
+    ],
+    distortion: [
+        {key: 'drive', label: 'drive', min: 0, max: 1, step: 0.01},
+        {key: 'volume', label: 'выход', min: 0, max: 1, step: 0.01},
+    ],
+    reverb: [
+        {key: 'decay', label: 'хвост', min: 0, max: 1, step: 0.01},
+        {key: 'damp', label: 'демпф.', min: 0, max: 1, step: 0.01},
+        {key: 'wet', label: 'wet', min: 0, max: 1, step: 0.01},
+    ],
+}
+
+const DEFAULT_PARAMS: Record<EffectKind, Record<string, number>> = {
+    delay: {time: 250, feedback: 0.35, wet: 0.3},
+    eq: {lowGain: 0, midGain: 0, highGain: 0},
+    saturation: {inputGain: 0.4, mix: 0.6},
+    distortion: {drive: 0.5, volume: 0.7},
+    reverb: {decay: 0.5, damp: 0.5, wet: 0.3},
+}
+
+interface EffectRecord {
+    kind: EffectKind
+    params: Record<string, number>
 }
 
 export interface Waveform {
@@ -192,6 +269,89 @@ interface LaneRecord {
     waveform: Waveform
     audioUnitBox: AudioUnitBox
     trackBox: TrackBox
+    /** все эффекты дорожки; удалённые (например, через undo) помечаются при refresh */
+    effects: EffectRecord[]
+}
+
+const EFFECT_BOXES = {
+    delay: DelayDeviceBox,
+    eq: RevampDeviceBox,
+    saturation: WaveshaperDeviceBox,
+    distortion: FoldDeviceBox,
+    reverb: ReverbDeviceBox,
+} as const
+
+/** Значение параметра эффекта в «мировых» единицах движка OpenDAW. */
+const effectParamValue = (box: Box, kind: EffectKind, key: string): number => {
+    switch (kind) {
+        case 'delay': {
+            const device = box as DelayDeviceBox
+            if (key === 'time') return device.delayMillis.getValue() * 1000
+            if (key === 'feedback') return device.feedback.getValue()
+            return device.wet.getValue()
+        }
+        case 'eq': {
+            const device = box as RevampDeviceBox
+            if (key === 'lowGain') return device.lowShelf.gain.getValue()
+            if (key === 'midGain') return device.midBell.gain.getValue()
+            return device.highShelf.gain.getValue()
+        }
+        case 'saturation': {
+            const device = box as WaveshaperDeviceBox
+            if (key === 'inputGain') return device.inputGain.getValue()
+            return device.mix.getValue()
+        }
+        case 'distortion': {
+            const device = box as FoldDeviceBox
+            if (key === 'drive') return device.drive.getValue()
+            return device.volume.getValue()
+        }
+        case 'reverb': {
+            const device = box as ReverbDeviceBox
+            if (key === 'decay') return device.decay.getValue()
+            if (key === 'damp') return device.damp.getValue()
+            return device.wet.getValue()
+        }
+    }
+}
+
+/** Обратное преобразование: мировые значения параметров → unit-значения полей бокса. */
+const effectFieldFor = (box: Box, kind: EffectKind, key: string): Float32Field | null => {
+    switch (kind) {
+        case 'delay': {
+            const device = box as DelayDeviceBox
+            if (key === 'time') return device.delayMillis
+            if (key === 'feedback') return device.feedback
+            return device.wet
+        }
+        case 'eq': {
+            const device = box as RevampDeviceBox
+            if (key === 'lowGain') return device.lowShelf.gain
+            if (key === 'midGain') return device.midBell.gain
+            return device.highShelf.gain
+        }
+        case 'saturation': {
+            const device = box as WaveshaperDeviceBox
+            if (key === 'inputGain') return device.inputGain
+            return device.mix
+        }
+        case 'distortion': {
+            const device = box as FoldDeviceBox
+            if (key === 'drive') return device.drive
+            return device.volume
+        }
+        case 'reverb': {
+            const device = box as ReverbDeviceBox
+            if (key === 'decay') return device.decay
+            if (key === 'damp') return device.damp
+            return device.wet
+        }
+    }
+}
+
+const unitToRaw = (kind: EffectKind, key: string, value: number): number => {
+    if (kind === 'delay' && key === 'time') return value / 1000
+    return value
 }
 
 const toSeconds = (ppqn: number): number => PPQN.pulsesToSeconds(ppqn, BPM)
@@ -297,21 +457,31 @@ export class DawEngine {
     }
 
     async addSample(source: SampleSource): Promise<void> {
-        if (this.hasSource(source.id)) return
         const generation = this.#generation
         const response = await fetch(source.url)
         if (!response.ok) throw new Error(`Не удалось загрузить «${source.name}» (HTTP ${response.status})`)
         const arrayBuffer = await response.arrayBuffer()
         const sample = await this.#runtime.sampleService.importFile({name: source.name, arrayBuffer})
         const uuid = UUID.parse(sample.uuid)
-        const audio = await this.#runtime.sampleManager.getAudioData(uuid)
         let waveform = this.#waveforms.get(sample.uuid)
         if (waveform === undefined) {
+            const audio = await this.#runtime.sampleManager.getAudioData(uuid)
             waveform = buildWaveform(audio)
             this.#waveforms.set(sample.uuid, waveform)
         }
         // Пока сэмпл грузился, проект могли пересоздать — тогда результат уже не нужен.
-        if (generation !== this.#generation || this.hasSource(source.id)) return
+        if (generation !== this.#generation) return
+        this.#addLane(source, sample, waveform!)
+    }
+
+    /** Создать дорожку с тем же сэмплом ещё раз (копия). Волновая форма и файл уже в кэше — мгновенно. */
+    duplicateLane(laneId: string): void {
+        const lane = this.#laneById(laneId)
+        if (lane === undefined) return
+        this.#addLane(lane.source, lane.sample, lane.waveform)
+    }
+
+    #addLane(source: SampleSource, sample: Sample, waveform: Waveform): void {
         const project = this.#project
         const {boxGraph, api, editing} = project
         const hue = source.hue ?? hueOf(source.name)
@@ -319,6 +489,7 @@ export class DawEngine {
         editing.modify(() => {
             const {audioUnitBox, instrumentBox, trackBox} = api.createInstrument(InstrumentFactories.Tape)
             instrumentBox.label.setValue(source.name)
+            const uuid = UUID.parse(sample.uuid)
             const audioFileBox = boxGraph.findBox<AudioFileBox>(uuid).unwrapOrElse(() =>
                 AudioFileBox.create(boxGraph, uuid, box => {
                     box.fileName.setValue(source.name)
@@ -329,12 +500,13 @@ export class DawEngine {
                 boxGraph, sample, audioFileBox, position: 0, targetTrack: trackBox, name: source.name,
             })
             region.hue.setValue(hue)
-            record = {source, sample, waveform: waveform!, audioUnitBox, trackBox}
+            record = {source, sample, waveform, audioUnitBox, trackBox, effects: []}
         })
         if (record !== null) {
-            const index = this.#lanes.findIndex(lane => lane.source.id === source.id)
-            if (index >= 0) this.#lanes.splice(index, 1)
-            this.#lanes.push(record)
+            // новая копия — сразу после последней дорожки этого же источника
+            const index = this.#lanes.reduce(
+                (acc, lane, position) => lane.source.id === source.id ? position + 1 : acc, 0)
+            this.#lanes.splice(index, 0, record)
         }
         this.#refresh()
     }
@@ -344,6 +516,17 @@ export class DawEngine {
         if (lane === undefined) return
         this.#project.editing.modify(() => this.#project.api.deleteAudioUnit(lane.audioUnitBox))
         this.#refresh()
+    }
+
+    removeLane(laneId: string): void {
+        const lane = this.#laneById(laneId)
+        if (lane === undefined) return
+        this.#project.editing.modify(() => this.#project.api.deleteAudioUnit(lane.audioUnitBox))
+        this.#refresh()
+    }
+
+    copyCount(sourceId: string): number {
+        return this.#live().filter(lane => lane.source.id === sourceId).length
     }
 
     // ── Редактирование ──
@@ -429,6 +612,41 @@ export class DawEngine {
         return found.length
     }
 
+    /** Переместить регион между дорожками (в том же ряду — просто сдвиг по времени). */
+    moveRegionToLane(regionId: string, targetLaneId: string, startSeconds: number, live = false): void {
+        const found = this.#find(regionId)
+        if (found === null) return
+        const target = this.#laneById(targetLaneId)
+        if (target === undefined) return
+        if (target === found.lane) {
+            this.moveRegion(regionId, startSeconds, live)
+            return
+        }
+        const {region, lane} = found
+        // позиция на целевой дорожке — с учётом её соседей
+        const neighbours = this.#regionAdapters(target)
+        let position = Math.max(0, toPulses(startSeconds))
+        const minPosition = neighbours.reduce((acc, other) => Math.max(acc, other.complete), 0)
+        position = Math.max(position, minPosition)
+        const srcStart = region.waveformOffset.getValue() + toSeconds(region.loopOffset)
+        const hue = region.hue
+        const label = region.label
+        const muted = region.mute
+        const sample = lane.sample
+        const audioFileBox = this.#project.boxGraph.findBox<AudioFileBox>(UUID.parse(sample.uuid))
+            .unwrapOrElse(() => panic('AudioFileBox потерян'))
+        this.#project.editing.modify(() => {
+            region.box.delete()
+            const created = AudioContentFactory.createNotStretchedRegion({
+                boxGraph: this.#project.boxGraph, sample, audioFileBox,
+                position, targetTrack: target.trackBox, name: label,
+            })
+            created.hue.setValue(hue)
+            created.mute.setValue(muted)
+            created.loopOffset.setValue(toPulses(srcStart))
+        }, !live)
+    }
+
     deleteRegion(regionId: string): void {
         const found = this.#find(regionId)
         if (found === null) return
@@ -454,6 +672,111 @@ export class DawEngine {
     setLaneVolume(laneId: string, volumeDb: number): void {
         const lane = this.#laneById(laneId)
         if (lane !== undefined) this.#project.editing.modify(() => lane.audioUnitBox.volume.setValue(volumeDb), false)
+    }
+
+    // ── Эффекты дорожек ──
+
+    addEffect(laneId: string, kind: EffectKind): void {
+        const lane = this.#laneById(laneId)
+        if (lane === undefined) return
+        const project = this.#project
+        const unit = project.boxAdapters.adapterFor(lane.audioUnitBox, AudioUnitBoxAdapter)
+        const field = unit.audioEffectsField.unwrap()
+        let effectBox: Box | null = null
+        project.editing.modify(() => {
+            effectBox = project.api.insertEffect(field, EffectFactories[kind])
+        })
+        if (effectBox === null) return
+        const box = effectBox as unknown as Box
+        box.label.setValue(EFFECT_LABELS[kind])
+        // включаем все полосы эквалайзера — иначе Revamp молчит
+        if (kind === 'eq') {
+            const device = box as RevampDeviceBox
+            project.editing.modify(() => {
+                device.lowShelf.enabled.setValue(true)
+                device.midBell.enabled.setValue(true)
+                device.highShelf.enabled.setValue(true)
+            })
+        }
+        const record: EffectRecord = {kind, params: {...DEFAULT_PARAMS[kind]}}
+        lane.effects.push(record)
+        this.#applyAllEffectParams(box, record)
+        this.#refresh()
+    }
+
+    removeEffect(effectId: string): void {
+        const located = this.#locateEffect(effectId)
+        if (located === null) return
+        const {effect, lane, index} = located
+        this.#project.editing.modify(() => effect.box.delete())
+        lane.effects.splice(index, 1)
+        this.#refresh()
+    }
+
+    setEffectEnabled(effectId: string, enabled: boolean): void {
+        const located = this.#locateEffect(effectId)
+        if (located === null) return
+        this.#project.editing.modify(() => located.effect.enabledField.setValue(enabled))
+    }
+
+    /** Значение в «мировых» единицах из PARAM_SPECS (мс, дБ, 0..1). */
+    setEffectParameter(effectId: string, key: string, value: number): void {
+        const located = this.#locateEffect(effectId)
+        if (located === null) return
+        const {effect, lane, index} = located
+        const kind = lane.effects[index].kind
+        const field = effectFieldFor(effect.box, kind, key)
+        if (field === null) return
+        const raw = unitToRaw(kind, key, value)
+        this.#project.editing.modify(() => field.setValue(raw), false)
+        lane.effects[index].params[key] = value
+    }
+
+    #locateEffect(effectId: string): {effect: AudioEffectDeviceAdapter, lane: LaneRecord, index: number} | null {
+        for (const lane of this.#live()) {
+            const unit = this.#project.boxAdapters.adapterFor(lane.audioUnitBox, AudioUnitBoxAdapter)
+            const effects = unit.audioEffects.map(collection => collection.asArray()).unwrapOr([])
+            const index = effects.findIndex(effect => UUID.toString(effect.uuid) === effectId)
+            if (index >= 0 && index < lane.effects.length) return {effect: effects[index], lane, index}
+        }
+        return null
+    }
+
+    #applyAllEffectParams(box: Box, record: EffectRecord): void {
+        for (const spec of PARAM_SPECS[record.kind]) {
+            const value = record.params[spec.key]
+            if (value === undefined) continue
+            const field = effectFieldFor(box, record.kind, spec.key)
+            if (field !== null) field.setValue(unitToRaw(record.kind, spec.key, value))
+        }
+    }
+
+    /**
+     * Эффекты дорожки для снимка. Порядок цепочки — источник истины; записи параметров
+     * чистятся, если эффект пропал (например, после undo).
+     */
+    #effectInfos(lane: LaneRecord, unit: AudioUnitBoxAdapter): EffectInfo[] {
+        const effects = unit.audioEffects.map(collection => collection.asArray()).unwrapOr([])
+        if (effects.length !== lane.effects.length) {
+            lane.effects.splice(Math.min(lane.effects.length, effects.length), Number.MAX_SAFE_INTEGER)
+        }
+        return effects.map((effect, index) => {
+            const kind = lane.effects[index]?.kind
+            if (kind === undefined) return null
+            // подтягиваем значения из бокса (undo/redo могли изменить их в обход движка)
+            const params = PARAM_SPECS[kind].map(spec => ({
+                key: spec.key,
+                value: effectParamValue(effect.box, kind, spec.key),
+            }))
+            lane.effects[index].params = Object.fromEntries(params.map(item => [item.key, item.value]))
+            return {
+                id: UUID.toString(effect.uuid),
+                kind,
+                label: EFFECT_LABELS[kind],
+                enabled: effect.enabledField.getValue(),
+                params,
+            } satisfies EffectInfo
+        }).filter((info): info is EffectInfo => info !== null)
     }
 
     /** Завершает жест перетаскивания: все live-правки становятся одним шагом истории. */
@@ -518,6 +841,7 @@ export class DawEngine {
                 volumeDb: lane.audioUnitBox.volume.getValue(),
                 regions,
                 waveform: lane.waveform,
+                effects: this.#effectInfos(lane, unit),
             }
         })
         const length = lanes.reduce((acc, lane) => lane.regions.reduce(
