@@ -2,12 +2,12 @@ import workersUrl from '@opendaw/studio-core/workers-main.js?worker&url'
 import workletsUrl from '@opendaw/studio-core/processors.js?url'
 import wasmProcessorUrl from '@opendaw/studio-core-wasm/wasm-processor.js?url'
 import wasmOfflineWorkerUrl from '@opendaw/studio-core-wasm/wasm-offline-worker.js?worker&url'
-import {DefaultObservableValue, Option, panic, UUID} from '@opendaw/lib-std'
+import {DefaultObservableValue, Notifier, Option, panic, tryCatch, UUID} from '@opendaw/lib-std'
 import type {Progress, Subscription} from '@opendaw/lib-std'
-import {PPQN, WavFile} from '@opendaw/lib-dsp'
+import {AudioData, PPQN, WavFile} from '@opendaw/lib-dsp'
+import {SamplePeaks} from '@opendaw/lib-fusion'
 import {AnimationFrame} from '@opendaw/lib-dom'
 import {Box, BoxEditing} from '@opendaw/lib-box'
-import type {AudioData} from '@opendaw/lib-dsp'
 import {
     AudioFileBox,
     TrackBox,
