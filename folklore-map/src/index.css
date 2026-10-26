@@ -1,0 +1,41 @@
+@import "tailwindcss";
+@import 'leaflet/dist/leaflet.css';
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap');
+
+body,
+.leaflet-container,
+.leaflet-grab,
+.leaflet-grabbing {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23ff00ff" stroke="%23ffffff" stroke-width="1.5" d="M2 2 L2 18 L7 13 L11 21 L14 19 L10 11 L16 11 Z"/></svg>') 2 2, auto !important;
+}
+
+button, a, .leaflet-interactive, [role="button"] {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23ff00ff" stroke="%23ffffff" stroke-width="1.5" d="M2 2 L2 18 L7 13 L11 21 L14 19 L10 11 L16 11 Z"/></svg>') 2 2, pointer !important;
+}
+
+.handle,
+[class*="handle"],
+.leaflet-col-resize {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24"><path fill="%23ffff00" stroke="%23000000" stroke-width="1.5" d="M8 4 L4 12 L8 20 L10 20 L7 12 L10 4 Z M16 4 L20 12 L16 20 L14 20 L17 12 L14 4 Z"/></svg>') 12 12, col-resize !important;
+}
+
+input, textarea, [contenteditable="true"] {
+    cursor: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="24" viewBox="0 0 16 24"><path fill="%23ffffff" d="M6 2 L10 2 L10 6 L8 6 L8 18 L10 18 L10 22 L6 22 L6 18 L8 18 L8 6 L6 6 Z"/></svg>') 8 12, text !important;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    background-color: #120a14;
+    overflow: hidden;
+}
+
+.leaflet-popup-content-wrapper,
+.leaflet-bar {
+    border-radius: 0 !important;
+    font-family: 'VT323', monospace !important;
+}

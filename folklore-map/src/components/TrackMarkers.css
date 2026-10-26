@@ -1,0 +1,150 @@
+.track-pin {
+    background: transparent !important;
+    border: none !important;
+    width: auto !important;
+    height: auto !important;
+    overflow: visible !important;
+}
+
+.pin-wrapper {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: max-content;
+}
+
+.permanent-track-label {
+    background: rgba(0, 0, 0, 0.85) !important;
+    border: 1px solid #00ff66 !important;
+    color: #ffffff !important;
+    font-family: 'VT323', monospace !important;
+    font-size: 16px !important;
+    padding: 2px 8px !important;
+    white-space: nowrap;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 2px 2px 0 #ff00ff !important;
+    margin-bottom: 4px;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.pin-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    transform: translateY(-50%);
+}
+
+.pin-head {
+    width: 14px;
+    height: 14px;
+    background-color: #ffff00;
+    border: 2px solid #ff00ff;
+    border-radius: 50%;
+    box-shadow: 0 0 6px rgba(255, 0, 255, 0.8);
+    z-index: 2;
+    transition: transform 0.2s ease;
+}
+
+.pin-stem {
+    width: 2px;
+    height: 12px;
+    background-color: #ffffff;
+    margin-top: -2px;
+    z-index: 1;
+}
+
+.pin-tip {
+    width: 0;
+    height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 6px solid #ffffff;
+    margin-top: -1px;
+}
+
+.track-pin:hover .pin-head {
+    transform: scale(1.3);
+    background-color: #ffffff;
+    box-shadow: 0 0 10px #ffff00;
+}
+
+.add-to-mixer-btn,
+.play-track-btn {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 28px !important;
+    height: 28px !important;
+    min-width: 28px !important;
+    min-height: 28px !important;
+
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+
+    border: 2px solid #ffffff !important;
+    border-radius: 0 !important;
+    cursor: pointer !important;
+    flex-shrink: 0 !important;
+    padding: 0 !important;
+    transition: all 0.15s ease;
+}
+
+.add-to-mixer-btn {
+    background-color: #00ff66;
+    color: #000000;
+    box-shadow: 3px 3px 0 #ff00ff;
+    margin-left: auto;
+}
+
+.add-to-mixer-btn:hover {
+    background-color: #ffffff;
+    color: #00ff66;
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 #ff00ff;
+}
+
+.add-to-mixer-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 #ff00ff;
+}
+
+.add-to-mixer-btn.added {
+    background-color: #ffff00;
+    color: #000000;
+    box-shadow: 3px 3px 0 #ff3333;
+}
+
+.play-track-btn {
+    background-color: #ff00ff;
+    color: #ffffff;
+    box-shadow: 3px 3px 0 #00ff66;
+}
+
+.play-track-btn:hover {
+    background-color: #ffffff;
+    color: #ff00ff;
+    transform: translate(-1px, -1px);
+    box-shadow: 4px 4px 0 #00ff66;
+}
+
+.play-track-btn:active {
+    transform: translate(2px, 2px);
+    box-shadow: 1px 1px 0 #00ff66;
+}
+
+.play-track-btn.playing {
+    background-color: #ffff00;
+    color: #000000;
+    box-shadow: 3px 3px 0 #00ff66;
+}
+
+.popup-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+}

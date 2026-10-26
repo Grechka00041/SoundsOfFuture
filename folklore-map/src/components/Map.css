@@ -1,0 +1,147 @@
+@import 'TrackMarkers.css';
+
+:root {
+    --color-pink: #ff00ff;
+    --color-green: #00ff66;
+    --color-yellow: #ffff00;
+    --color-red: #ff3333;
+    --color-white: #ffffff;
+    --color-black: #000000;
+
+    /* Фоны */
+    --bg-popup: #1a0b1c;
+    --bg-label: rgba(0, 0, 0, 0.85);
+}
+
+.region-polygon {
+    fill: var(--color-pink);
+    fill-opacity: 0.15;
+    stroke: var(--color-green);
+    stroke-width: 1.5px;
+    stroke-opacity: 0.8;
+    transition: all 0.2s ease;
+}
+
+.region-polygon:hover {
+    fill: var(--color-yellow);
+    fill-opacity: 0.4;
+    stroke: var(--color-white);
+    stroke-width: 2.5px;
+    filter: drop-shadow(0 0 5px var(--color-yellow));
+}
+
+.region-polygon.selected {
+    fill: var(--color-yellow);
+    fill-opacity: 0.5;
+    stroke: var(--color-red);
+    stroke-width: 3px;
+    filter: drop-shadow(0 0 8px var(--color-red));
+}
+
+.leaflet-interactive:focus {
+    outline: none !important;
+}
+
+.region-label {
+    background: var(--bg-label) !important;
+    border: 1px solid var(--color-green) !important;
+    box-shadow: 2px 2px 0 var(--color-pink) !important;
+    font-family: 'VT323', monospace !important;
+    font-size: 16px !important;
+    color: var(--color-white) !important;
+    padding: 2px 6px !important;
+    border-radius: 0 !important;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    pointer-events: none;
+    white-space: nowrap;
+}
+
+.region-label::before {
+    border-top-color: var(--color-green) !important;
+}
+
+.popup-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.instrument-popup {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.instrument-popup strong {
+    flex: 1;
+}
+
+.popup-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 6px;
+    padding-top: 4px;
+    border-top: 1px dashed #444;
+}
+
+.popup-duration {
+    font-size: 14px;
+    color: var(--color-pink);
+    text-shadow: 0 0 6px rgba(255, 0, 255, 0.5);
+    white-space: nowrap;
+}
+
+.retro-popup .leaflet-popup-content-wrapper {
+    background: var(--bg-popup) !important;
+    color: var(--color-white) !important;
+    border: 2px solid var(--color-green) !important;
+    border-radius: 0 !important;
+    font-family: 'VT323', monospace !important;
+    font-size: 18px !important;
+    box-shadow: 4px 4px 0 var(--color-pink) !important;
+    padding: 0 !important;
+}
+
+.retro-popup .leaflet-popup-content {
+    margin: 12px 16px !important;
+    line-height: 1.4 !important;
+}
+
+.retro-popup .leaflet-popup-tip {
+    background: var(--color-green) !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.retro-popup .leaflet-popup-close-button {
+    color: var(--color-pink) !important;
+    font-family: 'Press Start 2P', cursive !important;
+    font-size: 12px !important;
+    padding: 8px !important;
+}
+
+.popup-title {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--color-yellow);
+    margin-bottom: 4px;
+}
+
+.popup-artist {
+    font-size: 16px;
+    color: var(--color-green);
+    margin-bottom: 6px;
+}
+
+.instrument-popup strong {
+    font-size: 18px;
+    color: var(--color-white);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}

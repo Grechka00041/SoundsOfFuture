@@ -1,0 +1,153 @@
+
+:root {
+    --y2k-bg: #050505;
+    --y2k-primary: #00ff41;
+    --y2k-secondary: #ff00ff;
+    --y2k-accent: #00ffff;
+    --y2k-text: #e0e0e0;
+}
+
+.root {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    width: 100%;
+    background-color: var(--y2k-bg);
+    overflow: hidden;
+    font-family: 'VT323', monospace;
+    color: var(--y2k-text);
+    position: relative;
+}
+
+.root::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+            to bottom,
+            rgba(255, 255, 255, 0),
+            rgba(255, 255, 255, 0) 50%,
+            rgba(0, 0, 0, 0.15) 50%,
+            rgba(0, 0, 0, 0.15)
+    );
+    background-size: 100% 4px;
+    pointer-events: none;
+    z-index: 99999;
+    opacity: 0.6;
+}
+
+.header {
+    height: 3.5rem;
+    background-color: #000;
+    border-bottom: 2px solid var(--y2k-primary);
+    display: flex;
+    align-items: center;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 9999;
+    box-shadow: 0 0 15px rgba(0, 255, 65, 0.3);
+}
+
+.title {
+    font-family: 'Press Start 2P', cursive;
+    font-size: 0.85rem;
+    color: var(--y2k-primary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    text-shadow: 2px 2px 0 #ff00ff;
+    animation: glitch-skew 3s infinite linear alternate-reverse;
+}
+
+@keyframes glitch-skew {
+    0% { transform: skew(0deg); }
+    20% { transform: skew(-1deg); }
+    40% { transform: skew(1deg); }
+    60% { transform: skew(0deg); }
+    80% { transform: skew(2deg); }
+    100% { transform: skew(0deg); }
+}
+
+.main {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    position: relative;
+    overflow: hidden;
+    border: 1px solid #1a1a1a;
+}
+
+.leftPanel {
+    height: 100%;
+    position: relative;
+    isolation: isolate;
+    transition: width 75ms linear;
+    will-change: width;
+    background: #000;
+}
+
+.mapWrapper {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+}
+
+.handle {
+    width: 0.5rem;
+    background-color: #111;
+    border-left: 1px dashed var(--y2k-primary);
+    border-right: 1px dashed var(--y2k-primary);
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    user-select: none;
+    position: relative;
+    z-index: 9998;
+}
+
+.handle:hover {
+    background-color: rgba(0, 255, 65, 0.1);
+}
+
+.handleKnob {
+    height: 2rem;
+    width: 2px;
+    background-color: var(--y2k-primary);
+    box-shadow: 0 0 8px var(--y2k-primary);
+}
+
+.rightPanel {
+    flex: 1;
+    height: 100%;
+    background-color: #0a0a0a;
+    border-left: 2px solid var(--y2k-primary);
+    overflow: hidden;
+    padding: 0;
+    min-width: 0;
+    position: relative;
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+}
+
+.footer {
+    height: 2rem;
+    background-color: #000;
+    border-top: 2px solid var(--y2k-secondary);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-left: 1.5rem;
+    padding-right: 1.5rem;
+    font-size: 14px;
+    color: var(--y2k-secondary);
+    flex-shrink: 0;
+    position: relative;
+    z-index: 9999;
+    font-family: 'VT323', monospace;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
